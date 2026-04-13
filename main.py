@@ -54,17 +54,42 @@ class StarFateWelcomePlugin(Star):
                     mime_type = "image/png"
                 with open(local_path, "rb") as f:
                     data = base64.b64encode(f.read()).decode("utf-8")
-                self._log(f"本地背景图: {user_input}", "debug")
                 return f"data:{mime_type};base64,{data}"
             except Exception as e:
                 self._log(f"读取失败: {e}", "error")
                 return ""
-        self._log(f"本地图不存在: {user_input}", "warning")
         return ""
+
+    @filter.event_message_type(filter.EventMessageType.GROUP)
+    async def on_group_message(self, event: AstrMessageEvent):
+        """监听群消息，过滤入群事件"""
+        msg_obj = event.message_obj
+        
+        # 检查是否为入群事件
+        sub_type = getattr(msg_obj, 'sub_type', '')
+        if sub_type != "group_member_increase":
+            return
+        
+        group_id = str(event.get_group_id())
+        user_id = str(event.get_sender_id())
+        
+        self._log(f"入群事件触发: group={group_id}, user={user_id}")
+        
+        welcome = self._get_welcome_for_group(group_id)
+        if not welcome:
+            self._log(f"群 {group_id} 无欢迎语配置", "debug")
+            return
+        
+        try:
+            html = self.handler.render(welcome, event)
+            url = await self.html_render(html, {"full_page": True})
+            yield event.image_result(url)
+            self._log("欢迎图片已发送")
+        except Exception as e:
+            self._log(f"渲染失败: {e}", "error")
 
     @filter.command("sfwelcome_test")
     async def cmd_test(self, event: AstrMessageEvent, welcome_id: str = None):
-        """测试欢迎语（管理员）"""
         if not await self._check_admin(event):
             yield event.plain_result("权限不足")
             return
@@ -78,7 +103,6 @@ class StarFateWelcomePlugin(Star):
             yield event.plain_result("无欢迎语")
             return
 
-        self._log(f"测试: {welcome.get('welcome_id')}", "debug")
         try:
             html = self.handler.render(welcome, event)
             url = await self.html_render(html, {"full_page": True})
@@ -87,32 +111,29 @@ class StarFateWelcomePlugin(Star):
             yield event.plain_result(f"失败: {e}")
 
     def _get_welcome_for_group(self, group_id: str) -> dict:
-        """根据群号获取欢迎语配置"""
         ws = self.config.get("welcome_sets", [])
         if not ws:
             return None
-    
+
         bindings = self.config.get("group_welcome_map", [])
         welcome_id = None
         for bind in bindings:
             if str(bind.get("group_id")) == str(group_id):
                 welcome_id = bind.get("welcome_id")
                 break
-    
+
         if welcome_id is not None:
             for w in ws:
                 if str(w.get("welcome_id")) == str(welcome_id):
                     return w
-    
+
         for w in ws:
             if w.get("is_default"):
                 return w
-    
+
         return ws[0] if ws else None
-    
-    
+
     def _get_welcome_by_id(self, wid: str) -> dict:
-        """根据ID获取欢迎语配置"""
         for w in self.config.get("welcome_sets", []):
             if str(w.get("welcome_id")) == str(wid):
                 return w
@@ -173,7 +194,7 @@ class StarFateWelcomePlugin(Star):
         bindings = self.config.get("group_welcome_map", [])
         found = False
         for bind in bindings:
-            if bind.get("group_id") == group_id:
+            if str(bind.get("group_id")) == str(group_id):
                 bind["welcome_id"] = welcome_id
                 found = True
                 break
@@ -182,7 +203,6 @@ class StarFateWelcomePlugin(Star):
 
         self.config["group_welcome_map"] = bindings
         await self._save_config()
-        self._log(f"绑定: 群 {group_id} -> {welcome_id}")
         yield event.plain_result(f"已绑定群 {group_id} 使用欢迎语 {welcome_id}")
 
     @filter.command("sfwelcome_unbind")
@@ -192,9 +212,8 @@ class StarFateWelcomePlugin(Star):
             return
 
         bindings = self.config.get("group_welcome_map", [])
-        self.config["group_welcome_map"] = [b for b in bindings if b.get("group_id") != group_id]
+        self.config["group_welcome_map"] = [b for b in bindings if str(b.get("group_id")) != str(group_id)]
         await self._save_config()
-        self._log(f"解绑: 群 {group_id}")
         yield event.plain_result(f"已解绑群 {group_id}")
 
     async def _save_config(self):
