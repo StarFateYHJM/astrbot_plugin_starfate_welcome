@@ -1,71 +1,45 @@
 {
-    "debug_mode": {
-        "type": "bool",
-        "description": "调试模式",
-        "default": false
-    },
+    "debug_mode": {"type": "bool", "description": "调试模式", "default": false},
     "welcome_sets": {
         "type": "template_list",
-        "description": "多套欢迎语配置",
+        "description": "多套欢迎语",
         "templates": {
             "default": {
                 "name": "新欢迎语",
                 "items": {
-                    "welcome_name": {"type": "string", "description": "欢迎语名称", "default": "默认欢迎语"},
-                    "welcome_id": {"type": "string", "description": "欢迎语ID", "default": "default"},
-                    "is_default": {"type": "bool", "description": "是否为默认", "default": false},
-                    
-                    "css_zoom": {"type": "float", "description": "CSS缩放", "default": 2.0, "min": 1.0, "max": 4.0, "step": 0.5},
+                    "welcome_name": {"type": "string", "description": "名称", "default": "默认"},
+                    "welcome_id": {"type": "string", "description": "ID", "default": "default"},
+                    "is_default": {"type": "bool", "description": "是否默认", "default": false},
+                    "css_zoom": {"type": "float", "description": "缩放", "default": 2.0, "min": 1.0, "max": 4.0},
                     "padding_body": {"type": "string", "description": "内边距", "default": "40px 50px"},
-                    
                     "background_color": {"type": "string", "description": "背景色", "default": "#1A1A2E"},
-                    "background_image": {"type": "string", "description": "背景图（本地文件或URL）", "default": ""},
-                    "background_overlay": {"type": "bool", "description": "是否遮罩", "default": true},
-                    "overlay_color": {"type": "string", "description": "遮罩颜色", "default": "#000000"},
-                    "overlay_opacity": {"type": "float", "description": "遮罩透明度", "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.1},
-                    
-                    "text_color": {"type": "string", "description": "文字色", "default": "#FFFFFF"},
-                    "link_color": {"type": "string", "description": "链接色", "default": "#00D2FF"},
-                    "border_color": {"type": "string", "description": "边框色", "default": "#333355"},
-                    
+                    "background_image": {"type": "string", "description": "背景图", "default": ""},
+                    "background_overlay": {"type": "bool", "description": "遮罩", "default": true},
+                    "overlay_color": {"type": "string", "description": "遮罩色", "default": "#000"},
+                    "overlay_opacity": {"type": "float", "description": "透明度", "default": 0.5, "min": 0, "max": 1},
+                    "text_color": {"type": "string", "description": "文字色", "default": "#FFF"},
+                    "link_color": {"type": "string", "description": "链接色", "default": "#0DF"},
+                    "border_color": {"type": "string", "description": "边框色", "default": "#333"},
                     "base_font_size": {"type": "string", "description": "基础字号", "default": "16px"},
-                    "h1_font_size": {"type": "string", "description": "H1字号", "default": "2.5em"},
-                    "h2_font_size": {"type": "string", "description": "H2字号", "default": "2em"},
-                    "h3_font_size": {"type": "string", "description": "H3字号", "default": "1.5em"},
-                    
+                    "h1_font_size": {"type": "string", "description": "H1", "default": "2.5em"},
+                    "h2_font_size": {"type": "string", "description": "H2", "default": "2em"},
+                    "h3_font_size": {"type": "string", "description": "H3", "default": "1.5em"},
                     "code_bg_color": {"type": "string", "description": "代码背景", "default": "#2D2D2D"},
                     "code_text_color": {"type": "string", "description": "代码文字", "default": "#E6E6E6"},
-                    
-                    "content": {"type": "text", "description": "Markdown内容，支持变量：{user_id} {user_name} {group_id} {group_name} {at_user}", "default": "# 欢迎 {user_name} 加入本群！\n\n---\n\n请阅读群规，文明聊天。"}
+                    "content": {"type": "text", "description": "Markdown内容", "default": "# 欢迎 {user_name}！\n\n请阅读群规。"}
                 }
             }
         },
         "default": [{
-            "welcome_name": "默认欢迎语",
-            "welcome_id": "default",
-            "is_default": true,
-            "css_zoom": 2.0,
-            "padding_body": "40px 50px",
-            "background_color": "#1A1A2E",
-            "background_image": "",
-            "background_overlay": true,
-            "overlay_color": "#000000",
-            "overlay_opacity": 0.5,
-            "text_color": "#FFFFFF",
-            "link_color": "#00D2FF",
-            "border_color": "#333355",
-            "base_font_size": "16px",
-            "h1_font_size": "2.5em",
-            "h2_font_size": "2em",
-            "h3_font_size": "1.5em",
-            "code_bg_color": "#2D2D2D",
-            "code_text_color": "#E6E6E6",
+            "welcome_name": "默认", "welcome_id": "default", "is_default": true,
+            "css_zoom": 2.0, "padding_body": "40px 50px",
+            "background_color": "#1A1A2E", "background_image": "", "background_overlay": true,
+            "overlay_color": "#000", "overlay_opacity": 0.5,
+            "text_color": "#FFF", "link_color": "#0DF", "border_color": "#333",
+            "base_font_size": "16px", "h1_font_size": "2.5em", "h2_font_size": "2em", "h3_font_size": "1.5em",
+            "code_bg_color": "#2D2D2D", "code_text_color": "#E6E6E6",
             "content": "# 欢迎 {user_name} 加入本群！\n\n---\n\n请阅读群规，文明聊天。"
         }]
     },
-    "group_welcome_map": {
-        "type": "object",
-        "description": "群号与欢迎语ID的映射",
-        "default": {}
-    }
+    "group_welcome_map": {"type": "object", "description": "群号映射", "default": {}}
 }
