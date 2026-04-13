@@ -20,33 +20,41 @@ class WelcomeHandler:
         self._cache.clear()
         self._log("缓存已清空")
 
-    def render(self, welcome: dict, event: AstrMessageEvent) -> str:
-        user_id = str(event.get_sender_id())
+    def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
+        user_id = override_user_id if override_user_id else str(event.get_sender_id())
         group_id = str(event.get_group_id())
-        h = hashlib.md5(json.dumps({"w": welcome, "u": user_id, "g": group_id}, sort_keys=True).encode()).hexdigest()[:8]
+        data = json.dumps({"w": welcome, "u": user_id, "g": group_id}, sort_keys=True)
+        h = hashlib.md5(data.encode()).hexdigest()[:8]
 
         if h in self._cache:
             self._log(f"缓存命中: {h}")
             return self._cache[h]
 
         self._log(f"渲染: {h}")
-        html = self._build_html(welcome, event)
+        html = self._build_html(welcome, event, user_id)
         self._cache[h] = html
         return html
 
-    def _replace_vars(self, text: str, event: AstrMessageEvent) -> str:
-        uid = str(event.get_sender_id())
+    def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
         gid = str(event.get_group_id())
-        uname = getattr(event, 'get_sender_name', lambda: uid)() or uid
-        gname = getattr(event, 'get_group_name', lambda: gid)() or gid
-        return text.replace("{user_id}", uid).replace("{user_name}", uname)\
-                  .replace("{group_id}", gid).replace("{group_name}", gname)\
-                  .replace("{at_user}", f"[CQ:at,qq={uid}]")
+        uname = user_id
+        gname = gid
+        if hasattr(event, 'get_sender_name'):
+            uname = event.get_sender_name() or user_id
+        if hasattr(event, 'get_group_name'):
+            gname = event.get_group_name() or gid
+        return text.replace("{user_id}", user_id)\
+                  .replace("{user_name}", uname)\
+                  .replace("{group_id}", gid)\
+                  .replace("{group_name}", gname)\
+                  .replace("{at_user}", f"[CQ:at,qq={user_id}]")
 
-    def _build_html(self, w: dict, event: AstrMessageEvent) -> str:
-        content = self._replace_vars(w.get("content", ""), event)
+    def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
+        content = self._replace_vars(w.get("content", ""), event, user_id)
         bg = self.plugin.resolve_background(w.get("background_image", ""))
-        overlay = f'<div class="overlay" style="background:{w.get("overlay_color","#000")};opacity:{w.get("overlay_opacity",0.5)}"></div>' if bg and w.get("background_overlay", True) else ""
+        overlay = ""
+        if bg and w.get("background_overlay", True):
+            overlay = f'<div class="overlay" style="background:{w.get("overlay_color","#000")};opacity:{w.get("overlay_opacity",0.5)}"></div>'
 
         return f'''<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -66,6 +74,7 @@ body{{font-family:"Microsoft YaHei",sans-serif;zoom:{w.get("css_zoom",2)};backgr
 .content a{{color:{w.get("link_color","#0DF")};text-decoration:none}}
 .content code{{background:{w.get("code_bg_color","#2D2D2D")};color:{w.get("code_text_color","#E6E6E6")};padding:2px 6px;border-radius:4px}}
 .content pre{{background:{w.get("code_bg_color","#2D2D2D")};padding:15px;border-radius:8px;overflow-x:auto}}
+.content pre code{{background:none;padding:0}}
 .content table{{width:100%;border-collapse:collapse}}
 .content th,.content td{{border:1px solid {w.get("border_color","#333")};padding:10px 15px}}
 .content hr{{border:none;border-top:2px solid {w.get("border_color","#333")};margin:30px 0}}
@@ -76,7 +85,7 @@ body{{font-family:"Microsoft YaHei",sans-serif;zoom:{w.get("css_zoom",2)};backgr
 (function(){{
     document.getElementById('content').innerHTML = marked.parse({json.dumps(content)});
     var bg = '{bg}';
-    if(bg){{
+    if(bg && !bg.startsWith('data:')){{
         var i = new Image();
         i.onload = function(){{
             var w = this.width, h = this.height, max = 2000;
