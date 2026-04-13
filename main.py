@@ -62,46 +62,9 @@ class StarFateWelcomePlugin(Star):
         self._log(f"本地图不存在: {user_input}", "warning")
         return ""
 
-    @filter.event_message_type("group_member_increase")
-    async def on_group_welcome(self, event: AstrMessageEvent):
-        """监听入群事件"""
-        group_id = str(event.get_group_id())
-        user_id = str(event.get_sender_id())
-        self._log(f"入群事件: group={group_id}, user={user_id}")
-
-        welcome = self._get_welcome_for_group(group_id)
-        if not welcome:
-            self._log("无欢迎语配置", "debug")
-            return
-
-        try:
-            html = self.handler.render(welcome, event)
-            url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(url)
-        except Exception as e:
-            self._log(f"渲染失败: {e}", "error")
-
-    def _get_welcome_for_group(self, group_id: str) -> dict:
-        ws = self.config.get("welcome_sets", [])
-        if not ws:
-            return None
-        map_id = self.config.get("group_welcome_map", {}).get(group_id, "default")
-        for w in ws:
-            if w.get("welcome_id") == map_id:
-                return w
-        for w in ws:
-            if w.get("is_default"):
-                return w
-        return ws[0]
-
-    def _get_welcome_by_id(self, wid: str) -> dict:
-        for w in self.config.get("welcome_sets", []):
-            if w.get("welcome_id") == wid:
-                return w
-        return None
-
     @filter.command("sfwelcome_test")
     async def cmd_test(self, event: AstrMessageEvent, welcome_id: str = None):
+        """测试欢迎语（管理员）"""
         if not await self._check_admin(event):
             yield event.plain_result("权限不足")
             return
@@ -123,6 +86,36 @@ class StarFateWelcomePlugin(Star):
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
 
+    def _get_welcome_for_group(self, group_id: str) -> dict:
+        """根据群号获取欢迎语配置"""
+        ws = self.config.get("welcome_sets", [])
+        if not ws:
+            return None
+
+        bindings = self.config.get("group_welcome_map", [])
+        welcome_id = None
+        for bind in bindings:
+            if bind.get("group_id") == group_id:
+                welcome_id = bind.get("welcome_id")
+                break
+
+        if welcome_id:
+            for w in ws:
+                if w.get("welcome_id") == welcome_id:
+                    return w
+
+        for w in ws:
+            if w.get("is_default"):
+                return w
+
+        return ws[0] if ws else None
+
+    def _get_welcome_by_id(self, wid: str) -> dict:
+        for w in self.config.get("welcome_sets", []):
+            if w.get("welcome_id") == wid:
+                return w
+        return None
+
     @filter.command("sfwelcome_reload")
     async def cmd_reload(self, event: AstrMessageEvent):
         if not await self._check_admin(event):
@@ -140,7 +133,8 @@ class StarFateWelcomePlugin(Star):
                         self.config = p.config
                         self.debug = self.config.get("debug_mode", False)
                         return
-            if (cf := self.data_dir / "config.json").exists():
+            cf = self.data_dir / "config.json"
+            if cf.exists():
                 self.config = json.loads(cf.read_text(encoding="utf-8"))
                 self.debug = self.config.get("debug_mode", False)
         except Exception as e:
@@ -152,12 +146,20 @@ class StarFateWelcomePlugin(Star):
         if not ws:
             yield event.plain_result("暂无配置")
             return
-        lines = ["可用欢迎语："]
+
+        lines = ["=== 欢迎语列表 ==="]
         for i, w in enumerate(ws, 1):
             name = w.get("welcome_name", "?")
             wid = w.get("welcome_id", "?")
             d = " [默认]" if w.get("is_default") else ""
-            lines.append(f"  {i}. {name} ({wid}){d}")
+            lines.append(f"{i}. {name} ({wid}){d}")
+
+        bindings = self.config.get("group_welcome_map", [])
+        if bindings:
+            lines.append("\n=== 群聊绑定 ===")
+            for b in bindings:
+                lines.append(f"群 {b.get('group_id')} -> {b.get('welcome_id')}")
+
         yield event.plain_result("\n".join(lines))
 
     @filter.command("sfwelcome_bind")
@@ -165,18 +167,33 @@ class StarFateWelcomePlugin(Star):
         if not await self._check_admin(event):
             yield event.plain_result("权限不足")
             return
-        self.config.setdefault("group_welcome_map", {})[group_id] = welcome_id
+
+        bindings = self.config.get("group_welcome_map", [])
+        found = False
+        for bind in bindings:
+            if bind.get("group_id") == group_id:
+                bind["welcome_id"] = welcome_id
+                found = True
+                break
+        if not found:
+            bindings.append({"group_id": group_id, "welcome_id": welcome_id})
+
+        self.config["group_welcome_map"] = bindings
         await self._save_config()
-        yield event.plain_result(f"已绑定 {group_id} -> {welcome_id}")
+        self._log(f"绑定: 群 {group_id} -> {welcome_id}")
+        yield event.plain_result(f"已绑定群 {group_id} 使用欢迎语 {welcome_id}")
 
     @filter.command("sfwelcome_unbind")
     async def cmd_unbind(self, event: AstrMessageEvent, group_id: str):
         if not await self._check_admin(event):
             yield event.plain_result("权限不足")
             return
-        self.config.get("group_welcome_map", {}).pop(group_id, None)
+
+        bindings = self.config.get("group_welcome_map", [])
+        self.config["group_welcome_map"] = [b for b in bindings if b.get("group_id") != group_id]
         await self._save_config()
-        yield event.plain_result(f"已解绑 {group_id}")
+        self._log(f"解绑: 群 {group_id}")
+        yield event.plain_result(f"已解绑群 {group_id}")
 
     async def _save_config(self):
         cf = self.data_dir / "config.json"
