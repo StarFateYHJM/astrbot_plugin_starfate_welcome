@@ -60,24 +60,49 @@ class StarFateWelcomePlugin(Star):
                 return ""
         return ""
 
-    @filter.event_message_type(filter.EventMessageType.GROUP)
-    async def on_group_message(self, event: AstrMessageEvent):
-        """监听群消息，过滤入群事件"""
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_all_message(self, event: AstrMessageEvent):
+        """监听所有消息，过滤入群事件"""
         msg_obj = event.message_obj
         
-        # 检查是否为入群事件
-        sub_type = getattr(msg_obj, 'sub_type', '')
-        if sub_type != "group_member_increase":
+        # 检查是否有 group_id（群聊消息才有）
+        group_id = event.get_group_id()
+        if not group_id:
             return
         
-        group_id = str(event.get_group_id())
+        # 尝试多种方式判断入群事件
+        is_increase = False
+        
+        # 方式1：检查 sub_type
+        if hasattr(msg_obj, 'sub_type'):
+            if msg_obj.sub_type in ("group_member_increase", "increase"):
+                is_increase = True
+        
+        # 方式2：检查 type
+        if hasattr(msg_obj, 'type'):
+            if msg_obj.type in ("GroupMemberIncrease", "group_member_increase", "increase"):
+                is_increase = True
+        
+        # 方式3：检查 raw 数据
+        if hasattr(msg_obj, 'raw'):
+            raw = msg_obj.raw
+            if isinstance(raw, dict):
+                if raw.get("notice_type") == "group_increase":
+                    is_increase = True
+                if raw.get("sub_type") == "invite":
+                    is_increase = True
+        
+        if not is_increase:
+            return
+        
         user_id = str(event.get_sender_id())
+        group_id_str = str(group_id)
         
-        self._log(f"入群事件触发: group={group_id}, user={user_id}")
+        self._log(f"入群事件触发: group={group_id_str}, user={user_id}")
         
-        welcome = self._get_welcome_for_group(group_id)
+        welcome = self._get_welcome_for_group(group_id_str)
         if not welcome:
-            self._log(f"群 {group_id} 无欢迎语配置", "debug")
+            self._log(f"群 {group_id_str} 无欢迎语配置", "debug")
             return
         
         try:
