@@ -62,7 +62,7 @@ class StarFateWelcomePlugin(Star):
         self._log(f"本地图不存在: {user_input}", "warning")
         return ""
 
-    @filter.event_message_type(filter.EventMessageType.GROUP_MEMBER_INCREASE)
+    @filter.event_message_type("group_member_increase")
     async def on_group_welcome(self, event: AstrMessageEvent):
         """监听入群事件"""
         group_id = str(event.get_group_id())
