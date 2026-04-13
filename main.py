@@ -66,6 +66,8 @@ class StarFateWelcomePlugin(Star):
         msg_obj = event.message_obj
         
         group_id = event.get_group_id()
+        self._log(f"事件检查: group_id={group_id}", "debug")
+        
         if not group_id:
             return
         
@@ -75,9 +77,14 @@ class StarFateWelcomePlugin(Star):
         if hasattr(msg_obj, 'raw'):
             raw = msg_obj.raw
             if isinstance(raw, dict):
-                if raw.get("post_type") == "notice" and raw.get("notice_type") == "group_increase":
+                post_type = raw.get("post_type")
+                notice_type = raw.get("notice_type")
+                self._log(f"raw数据: post_type={post_type}, notice_type={notice_type}", "debug")
+                
+                if post_type == "notice" and notice_type == "group_increase":
                     is_increase = True
                     user_id = raw.get("user_id")
+                    self._log(f"检测到入群事件: user_id={user_id}", "debug")
         
         if not is_increase:
             return
@@ -85,12 +92,14 @@ class StarFateWelcomePlugin(Star):
         group_id_str = str(group_id)
         user_id_str = str(user_id) if user_id else ""
         
-        self._log(f"入群事件触发: group={group_id_str}, user={user_id_str}")
+        self._log(f"入群事件确认: group={group_id_str}, user={user_id_str}")
         
         welcome = self._get_welcome_for_group(group_id_str)
         if not welcome:
-            self._log(f"群 {group_id_str} 无欢迎语配置", "debug")
+            self._log(f"群 {group_id_str} 无欢迎语配置")
             return
+        
+        self._log(f"找到欢迎语: {welcome.get('welcome_id')}")
         
         try:
             html = self.handler.render(welcome, event, user_id_str)
