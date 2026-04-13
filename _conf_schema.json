@@ -19,7 +19,7 @@
                     "padding_body": {"type": "string", "description": "内边距", "default": "40px 50px"},
                     
                     "background_color": {"type": "string", "description": "背景色", "default": "#1A1A2E"},
-                    "background_image": {"type": "string", "description": "背景图（本地文件或URL）", "default": ""},
+                    "background_image": {"type": "string", "description": "背景图", "default": ""},
                     "background_overlay": {"type": "bool", "description": "是否遮罩", "default": true},
                     "overlay_color": {"type": "string", "description": "遮罩颜色", "default": "#000000"},
                     "overlay_opacity": {"type": "float", "description": "遮罩透明度", "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.1},
@@ -36,7 +36,7 @@
                     "code_bg_color": {"type": "string", "description": "代码背景", "default": "#2D2D2D"},
                     "code_text_color": {"type": "string", "description": "代码文字", "default": "#E6E6E6"},
                     
-                    "content": {"type": "text", "description": "Markdown内容，支持变量：{user_id} {user_name} {group_id} {group_name} {at_user}", "default": "# 欢迎 {user_name} 加入本群！\n\n---\n\n请阅读群规，文明聊天。"}
+                    "content": {"type": "text", "description": "Markdown内容", "default": "# 欢迎 {user_name} 加入本群！\n\n---\n\n请阅读群规，文明聊天。"}
                 }
             }
         },
@@ -64,8 +64,17 @@
         }]
     },
     "group_welcome_map": {
-        "type": "object",
-        "description": "群号与欢迎语ID的映射",
-        "default": {}
+        "type": "template_list",
+        "description": "群号与欢迎语ID的绑定",
+        "templates": {
+            "default": {
+                "name": "新绑定",
+                "items": {
+                    "group_id": {"type": "string", "description": "群号", "default": ""},
+                    "welcome_id": {"type": "string", "description": "欢迎语ID", "default": "default"}
+                }
+            }
+        },
+        "default": []
     }
 }
