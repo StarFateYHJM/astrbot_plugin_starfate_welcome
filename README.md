@@ -1,0 +1,2 @@
+# astrbot_plugin_starfate_welcome
+StarFate 入群欢迎插件
