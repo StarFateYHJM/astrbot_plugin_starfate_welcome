@@ -11,7 +11,7 @@ from astrbot.api import logger
 from .handlers.welcome_handler import WelcomeHandler
 
 
-@register("astrbot_plugin_starfate_welcome", "YHJM", "StarFate 入群欢迎插件", "1.0.0")
+@register("astrbot_plugin_starfate_welcome", "YHJM", "StarFate 入群欢迎", "1.0.0")
 class StarFateWelcomePlugin(Star):
 
     def __init__(self, context: Context, config: dict = None):
@@ -62,7 +62,7 @@ class StarFateWelcomePlugin(Star):
         self._log(f"本地图不存在: {user_input}", "warning")
         return ""
 
-    @filter.on_group_increase()
+    @filter.event_type(filter.EventType.GROUP_MEMBER_INCREASE)
     async def on_group_welcome(self, event: AstrMessageEvent):
         group_id = str(event.get_group_id())
         user_id = str(event.get_sender_id())
