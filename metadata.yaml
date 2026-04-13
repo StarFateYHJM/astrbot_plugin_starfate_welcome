@@ -1,0 +1,7 @@
+name: astrbot_plugin_starfate_welcome
+display_name: StarFate 入群欢迎插件
+version: 1.0.0
+description: 支持 Markdown 渲染、多套欢迎语、本地/网络背景图的入群欢迎插件
+author: YHJM
+license: MIT
+astrbot_version: ">=4.0.0"
