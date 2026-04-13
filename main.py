@@ -91,28 +91,30 @@ class StarFateWelcomePlugin(Star):
         ws = self.config.get("welcome_sets", [])
         if not ws:
             return None
-
+    
         bindings = self.config.get("group_welcome_map", [])
         welcome_id = None
         for bind in bindings:
-            if bind.get("group_id") == group_id:
+            if str(bind.get("group_id")) == str(group_id):
                 welcome_id = bind.get("welcome_id")
                 break
-
-        if welcome_id:
+    
+        if welcome_id is not None:
             for w in ws:
-                if w.get("welcome_id") == welcome_id:
+                if str(w.get("welcome_id")) == str(welcome_id):
                     return w
-
+    
         for w in ws:
             if w.get("is_default"):
                 return w
-
+    
         return ws[0] if ws else None
-
+    
+    
     def _get_welcome_by_id(self, wid: str) -> dict:
+        """根据ID获取欢迎语配置"""
         for w in self.config.get("welcome_sets", []):
-            if w.get("welcome_id") == wid:
+            if str(w.get("welcome_id")) == str(wid):
                 return w
         return None
 
