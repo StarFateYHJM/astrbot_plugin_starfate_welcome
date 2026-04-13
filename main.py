@@ -11,7 +11,7 @@ from astrbot.api import logger
 from .handlers.welcome_handler import WelcomeHandler
 
 
-@register("astrbot_plugin_starfate_welcome", "YHJM", "StarFate 入群欢迎", "1.0.0")
+@register("astrbot_plugin_starfate_welcome", "YHJM", "StarFate 入群欢迎插件", "1.0.0")
 class StarFateWelcomePlugin(Star):
 
     def __init__(self, context: Context, config: dict = None):
