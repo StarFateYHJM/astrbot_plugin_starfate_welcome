@@ -140,6 +140,7 @@ class StarFateWelcomePlugin(Star):
             return
 
         try:
+            yield event.plain_result(f"[CQ:at,qq={user_id_str}]")
             html = self.handler.render(welcome, event, user_id_str)
             url = await self.html_render(html, {"full_page": True})
             yield event.image_result(url)
