@@ -8,7 +8,6 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message import MessageChain
 from astrbot.api.message_components import At, Plain
 
 from .handlers.welcome_handler import WelcomeHandler
@@ -164,19 +163,19 @@ class StarFateWelcomePlugin(Star):
             self._log("调用 html_render...", "debug")
             image_url = await self.html_render(html, {"full_page": True})
             self._log(f"图片 URL: {image_url}")
-
+        
             at_text = welcome.get("at_text", " 欢迎入群！")
             
+            # 发送 @ 消息
             self._log("发送 @ 消息...", "debug")
-            at_chain = MessageChain([At(qq=user_id_str), Plain(at_text)])
-            await event.send(at_chain)
+            yield event.chain_result([At(qq=user_id_str), Plain(at_text)])
             self._log("@ 消息已发送", "debug")
             
+            # 发送图片消息
             self._log("发送图片消息...", "debug")
-            img_chain = MessageChain([image_url])
-            await event.send(img_chain)
+            yield event.chain_result([image_url])
             self._log("图片消息已发送", "debug")
-
+        
             event.stop_event()
             
         except Exception as e:
