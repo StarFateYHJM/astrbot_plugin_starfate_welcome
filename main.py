@@ -8,7 +8,8 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message_components import At, Plain,MessageChain
+from astrbot.api.message_components import At, Plain
+from astrbot.api.message import MessageChain
 
 from .handlers.welcome_handler import WelcomeHandler
 
