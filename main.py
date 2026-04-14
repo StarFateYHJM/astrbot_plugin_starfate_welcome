@@ -112,38 +112,38 @@ class StarFateWelcomePlugin(Star):
 
     def _extract_raw(self, event: AstrMessageEvent, msg_obj) -> dict:
         """尝试多种方式提取 raw 数据"""
-        # 方式1: msg_obj.raw
-        if hasattr(msg_obj, 'raw'):
-            raw = msg_obj.raw
-            if raw:
-                self._log("从 msg_obj.raw 获取到数据", "debug")
+        
+        # 方式1: msg_obj.raw_message（入群事件的 raw 数据在这里）
+        if hasattr(msg_obj, 'raw_message'):
+            raw = msg_obj.raw_message
+            self._log(f"raw_message 类型: {type(raw)}", "debug")
+            
+            # 如果是字符串，可能是 JSON
+            if isinstance(raw, str):
+                try:
+                    parsed = json.loads(raw)
+                    self._log("成功解析 raw_message JSON", "debug")
+                    return parsed
+                except json.JSONDecodeError:
+                    self._log("raw_message 不是有效 JSON", "debug")
+                    return None
+            
+            # 如果已经是字典
+            if isinstance(raw, dict):
+                self._log("raw_message 已经是字典", "debug")
                 return raw
         
         # 方式2: event.raw
         if hasattr(event, 'raw'):
             raw = event.raw
-            if raw:
-                self._log("从 event.raw 获取到数据", "debug")
+            if isinstance(raw, dict):
+                self._log("从 event.raw 获取到字典", "debug")
                 return raw
         
-        # 方式3: event.raw_message
-        if hasattr(event, 'raw_message'):
-            try:
-                raw = json.loads(event.raw_message)
-                self._log("从 event.raw_message 解析到数据", "debug")
-                return raw
-            except:
-                pass
-        
-        # 方式4: 直接访问 event 的字典形式
-        if hasattr(event, '__dict__'):
-            for key, val in event.__dict__.items():
-                if 'raw' in key.lower() and val:
-                    self._log(f"从 event.{key} 获取到数据", "debug")
-                    return val if isinstance(val, dict) else None
-        
-        # 方式5: 打印所有属性用于调试
-        self._log(f"msg_obj 属性: {[a for a in dir(msg_obj) if not a.startswith('_')]}", "debug")
+        # 方式3: msg_obj.raw
+        if hasattr(msg_obj, 'raw') and isinstance(msg_obj.raw, dict):
+            self._log("从 msg_obj.raw 获取到字典", "debug")
+            return msg_obj.raw
         
         return None
 
