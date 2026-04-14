@@ -71,24 +71,25 @@ class StarFateWelcomePlugin(Star):
         if not group_id:
             return
         
-        is_increase = False
-        user_id = None
+        # 尝试多种方式获取 raw 数据
+        raw = self._extract_raw(event, msg_obj)
         
-        if hasattr(msg_obj, 'raw'):
-            raw = msg_obj.raw
-            if isinstance(raw, dict):
-                post_type = raw.get("post_type")
-                notice_type = raw.get("notice_type")
-                self._log(f"raw数据: post_type={post_type}, notice_type={notice_type}", "debug")
-                
-                if post_type == "notice" and notice_type == "group_increase":
-                    is_increase = True
-                    user_id = raw.get("user_id")
-                    self._log(f"检测到入群事件: user_id={user_id}", "debug")
-        
-        if not is_increase:
+        if not raw:
+            self._log("未获取到 raw 数据", "debug")
             return
         
+        if not isinstance(raw, dict):
+            self._log(f"raw 不是字典: {type(raw)}", "debug")
+            return
+        
+        post_type = raw.get("post_type")
+        notice_type = raw.get("notice_type")
+        self._log(f"raw数据: post_type={post_type}, notice_type={notice_type}", "debug")
+        
+        if post_type != "notice" or notice_type != "group_increase":
+            return
+        
+        user_id = raw.get("user_id")
         group_id_str = str(group_id)
         user_id_str = str(user_id) if user_id else ""
         
@@ -96,7 +97,7 @@ class StarFateWelcomePlugin(Star):
         
         welcome = self._get_welcome_for_group(group_id_str)
         if not welcome:
-            self._log(f"群 {group_id_str} 无欢迎语配置")
+            self._log(f"群 {group_id_str} 无欢迎语配置", "debug")
             return
         
         self._log(f"找到欢迎语: {welcome.get('welcome_id')}")
@@ -108,6 +109,43 @@ class StarFateWelcomePlugin(Star):
             self._log("欢迎图片已发送")
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
+
+    def _extract_raw(self, event: AstrMessageEvent, msg_obj) -> dict:
+        """尝试多种方式提取 raw 数据"""
+        # 方式1: msg_obj.raw
+        if hasattr(msg_obj, 'raw'):
+            raw = msg_obj.raw
+            if raw:
+                self._log("从 msg_obj.raw 获取到数据", "debug")
+                return raw
+        
+        # 方式2: event.raw
+        if hasattr(event, 'raw'):
+            raw = event.raw
+            if raw:
+                self._log("从 event.raw 获取到数据", "debug")
+                return raw
+        
+        # 方式3: event.raw_message
+        if hasattr(event, 'raw_message'):
+            try:
+                raw = json.loads(event.raw_message)
+                self._log("从 event.raw_message 解析到数据", "debug")
+                return raw
+            except:
+                pass
+        
+        # 方式4: 直接访问 event 的字典形式
+        if hasattr(event, '__dict__'):
+            for key, val in event.__dict__.items():
+                if 'raw' in key.lower() and val:
+                    self._log(f"从 event.{key} 获取到数据", "debug")
+                    return val if isinstance(val, dict) else None
+        
+        # 方式5: 打印所有属性用于调试
+        self._log(f"msg_obj 属性: {[a for a in dir(msg_obj) if not a.startswith('_')]}", "debug")
+        
+        return None
 
     @filter.command("sfwelcome_test")
     async def cmd_test(self, event: AstrMessageEvent, welcome_id: str = None):
