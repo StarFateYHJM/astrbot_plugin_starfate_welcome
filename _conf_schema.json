@@ -36,6 +36,8 @@
                     "code_bg_color": {"type": "string", "description": "代码背景", "default": "#2D2D2D"},
                     "code_text_color": {"type": "string", "description": "代码文字", "default": "#E6E6E6"},
                     
+                    "at_text": {"type": "string", "description": "@后的文字", "default": " 欢迎入群！"},
+                    
                     "content": {
                         "type": "text",
                         "description": "Markdown内容",
@@ -64,6 +66,7 @@
             "h3_font_size": "1.5em",
             "code_bg_color": "#2D2D2D",
             "code_text_color": "#E6E6E6",
+            "at_text": " 欢迎入群！",
             "content": "# 欢迎 {user_name} 加入本群！\n\n---\n\n请阅读群规，文明聊天。"
         }]
     },
