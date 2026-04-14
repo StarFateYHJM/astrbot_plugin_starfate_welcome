@@ -7,6 +7,7 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.api.message import MessageChain, At, Image
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -80,25 +81,21 @@ class StarFateWelcomePlugin(Star):
         if not ws:
             return None
 
-        # 查找绑定
         bindings = self.config.get("group_welcome_map", [])
         welcome_id = next(
             (b.get("welcome_id") for b in bindings if str(b.get("group_id")) == str(group_id)),
             None
         )
 
-        # 按绑定ID查找
         if welcome_id:
             w = self._get_welcome_by_id(welcome_id)
             if w:
                 return w
 
-        # 返回默认
         return next((w for w in ws if w.get("is_default")), ws[0] if ws else None)
 
     # ========== 事件处理 ==========
     def _extract_raw(self, event: AstrMessageEvent, msg_obj) -> dict:
-        # 优先从 raw_message 获取
         if hasattr(msg_obj, 'raw_message'):
             raw = msg_obj.raw_message
             if isinstance(raw, str):
@@ -109,7 +106,6 @@ class StarFateWelcomePlugin(Star):
             if isinstance(raw, dict):
                 return raw
 
-        # 备选方案
         for source in (getattr(event, 'raw', None), getattr(msg_obj, 'raw', None)):
             if isinstance(source, dict):
                 return source
@@ -140,11 +136,17 @@ class StarFateWelcomePlugin(Star):
             return
 
         try:
-            yield event.plain_result(f"[CQ:at,qq={user_id_str}]")
+            # 渲染图片
             html = self.handler.render(welcome, event, user_id_str)
-            url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(url)
-            self._log("欢迎图片已发送")
+            image_url = await self.html_render(html, {"full_page": True})
+            
+            # 一条消息同时发送 @ 和图片
+            chain = MessageChain()
+            chain.add(At(qq=user_id_str))
+            chain.add(Image.from_file(image_url))
+            yield event.chain_result(chain)
+            
+            self._log("欢迎消息已发送")
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
 
@@ -167,8 +169,11 @@ class StarFateWelcomePlugin(Star):
 
         try:
             html = self.handler.render(welcome, event, str(event.get_sender_id()))
-            url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(url)
+            image_url = await self.html_render(html, {"full_page": True})
+            
+            chain = MessageChain()
+            chain.add(Image.from_file(image_url))
+            yield event.chain_result(chain)
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
 
