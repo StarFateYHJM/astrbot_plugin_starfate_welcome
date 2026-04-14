@@ -21,7 +21,7 @@ class WelcomeHandler:
         self._cache.clear()
         self._log("缓存已清空")
 
-    def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
+    async def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
         user_id = override_user_id or str(event.get_sender_id())
         group_id = str(event.get_group_id())
 
@@ -34,39 +34,34 @@ class WelcomeHandler:
             return self._cache[cache_key]
 
         self._log(f"渲染: {cache_key}")
-        html = self._build_html(welcome, event, user_id)
+        html = await self._build_html(welcome, event, user_id)
         self._cache[cache_key] = html
         return html
 
-    def _get_user_name(self, event: AstrMessageEvent, user_id: str) -> str:
-        """获取用户昵称，多种方式尝试"""
-        # 方式1：从 raw 数据直接获取
+    async def _get_user_name(self, event: AstrMessageEvent, user_id: str) -> str:
+        """获取用户昵称"""
+        # 方式1：从 raw 数据获取
         msg_obj = event.message_obj
         if hasattr(msg_obj, 'raw'):
             raw = msg_obj.raw
-            if isinstance(raw, dict):
-                # 尝试多种可能的字段
-                sender = raw.get("sender", {})
-                if isinstance(sender, dict):
-                    name = sender.get("nickname") or sender.get("card") or sender.get("user_name")
-                    if name:
-                        self._log(f"从 raw.sender 获取昵称: {name}")
-                        return name
-                name = raw.get("user_name") or raw.get("nickname")
-                if name:
-                    self._log(f"从 raw 获取昵称: {name}")
-                    return name
-
-        # 方式2：从 raw_message 获取
-        if hasattr(msg_obj, 'raw_message'):
-            raw = msg_obj.raw_message
             if isinstance(raw, dict):
                 sender = raw.get("sender", {})
                 if isinstance(sender, dict):
                     name = sender.get("nickname") or sender.get("card")
                     if name:
-                        self._log(f"从 raw_message.sender 获取昵称: {name}")
+                        self._log(f"从 raw.sender 获取昵称: {name}")
                         return name
+
+        # 方式2：主动调用 API
+        try:
+            user_info = await self.plugin.context.get_user_info(user_id)
+            if user_info:
+                name = user_info.get("nickname") or user_info.get("user_name")
+                if name:
+                    self._log(f"从 API 获取昵称: {name}")
+                    return name
+        except Exception as e:
+            self._log(f"API 获取昵称失败: {e}")
 
         # 方式3：调用事件方法
         if hasattr(event, 'get_sender_name'):
@@ -78,12 +73,10 @@ class WelcomeHandler:
             except Exception as e:
                 self._log(f"get_sender_name 失败: {e}")
 
-        # 方式4：返回 QQ 号作为兜底
         self._log(f"无法获取昵称，使用 QQ 号: {user_id}")
         return user_id
 
     def _get_group_name(self, event: AstrMessageEvent, group_id: str) -> str:
-        """获取群名称"""
         msg_obj = event.message_obj
         if hasattr(msg_obj, 'raw'):
             raw = msg_obj.raw
@@ -102,9 +95,9 @@ class WelcomeHandler:
 
         return group_id
 
-    def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
+    async def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
         gid = str(event.get_group_id())
-        uname = self._get_user_name(event, user_id)
+        uname = await self._get_user_name(event, user_id)
         gname = self._get_group_name(event, gid)
 
         self._log(f"变量替换: user_id={user_id}, user_name={uname}, group_id={gid}, group_name={gname}")
@@ -116,8 +109,8 @@ class WelcomeHandler:
                 .replace("{group_name}", gname)
                 .replace("{at_user}", f"[CQ:at,qq={user_id}]"))
 
-    def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
-        content = self._replace_vars(w.get("content", ""), event, user_id)
+    async def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
+        content = await self._replace_vars(w.get("content", ""), event, user_id)
         bg = self.plugin.resolve_background(w.get("background_image", ""))
 
         overlay = ""
