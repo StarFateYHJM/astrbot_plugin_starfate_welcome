@@ -7,7 +7,6 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message import MessageChain, At, Image
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -136,15 +135,13 @@ class StarFateWelcomePlugin(Star):
             return
 
         try:
-            # 渲染图片
-            html = self.handler.render(welcome, event, user_id_str)
-            image_url = await self.html_render(html, {"full_page": True})
+            # 先发 @
+            yield event.plain_result(f"[CQ:at,qq={user_id_str}]")
             
-            # 一条消息同时发送 @ 和图片
-            chain = MessageChain()
-            chain.add(At(qq=user_id_str))
-            chain.add(Image.from_file(image_url))
-            yield event.chain_result(chain)
+            # 再发图片
+            html = self.handler.render(welcome, event, user_id_str)
+            url = await self.html_render(html, {"full_page": True})
+            yield event.image_result(url)
             
             self._log("欢迎消息已发送")
         except Exception as e:
@@ -169,11 +166,8 @@ class StarFateWelcomePlugin(Star):
 
         try:
             html = self.handler.render(welcome, event, str(event.get_sender_id()))
-            image_url = await self.html_render(html, {"full_page": True})
-            
-            chain = MessageChain()
-            chain.add(Image.from_file(image_url))
-            yield event.chain_result(chain)
+            url = await self.html_render(html, {"full_page": True})
+            yield event.image_result(url)
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
 
