@@ -3,6 +3,7 @@
 import json
 import base64
 import mimetypes
+import traceback
 from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -114,18 +115,30 @@ class StarFateWelcomePlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_all_event(self, event: AstrMessageEvent):
+        self._log("=== 收到事件 ===", "debug")
+        
         group_id = event.get_group_id()
+        self._log(f"group_id: {group_id}", "debug")
         if not group_id:
+            self._log("无 group_id，退出", "debug")
             return
 
         raw = self._extract_raw(event, event.message_obj)
+        self._log(f"raw 数据类型: {type(raw)}", "debug")
         if not isinstance(raw, dict):
+            self._log("raw 不是字典，退出", "debug")
             return
 
-        if raw.get("post_type") != "notice" or raw.get("notice_type") != "group_increase":
+        post_type = raw.get("post_type")
+        notice_type = raw.get("notice_type")
+        self._log(f"post_type={post_type}, notice_type={notice_type}", "debug")
+
+        if post_type != "notice" or notice_type != "group_increase":
+            self._log("不是入群事件，退出", "debug")
             return
 
         sub_type = raw.get("sub_type")
+        self._log(f"sub_type={sub_type}", "debug")
         if sub_type not in ("invite", "approve"):
             self._log(f"忽略入群子事件: sub_type={sub_type}", "debug")
             return
@@ -133,26 +146,38 @@ class StarFateWelcomePlugin(Star):
         group_id_str = str(group_id)
         user_id_str = str(raw.get("user_id", ""))
 
-        self._log(f"入群事件: group={group_id_str}, user={user_id_str}")
+        self._log(f"入群事件确认: group={group_id_str}, user={user_id_str}")
 
         welcome = self._get_welcome_for_group(group_id_str)
         if not welcome:
             self._log(f"群 {group_id_str} 无欢迎语", "debug")
             return
 
+        self._log(f"找到欢迎语: {welcome.get('welcome_id')}")
+
         try:
+            self._log("开始渲染 HTML...", "debug")
             html = self.handler.render(welcome, event, user_id_str)
+            self._log(f"HTML 渲染完成，长度: {len(html)}", "debug")
+            
+            self._log("调用 html_render...", "debug")
             image_url = await self.html_render(html, {"full_page": True})
+            self._log(f"图片 URL: {image_url}")
 
-            chain = [
-                At(qq=user_id_str),
-                image_url
-            ]
-            yield event.chain_result(chain)
+            self._log("发送 @ 消息...", "debug")
+            yield event.chain_result([At(qq=user_id_str)])
+            self._log("@ 消息已发送", "debug")
+            
+            self._log("发送图片消息...", "debug")
+            yield event.chain_result([image_url])
+            self._log("图片消息已发送", "debug")
 
-            self._log("欢迎消息已发送")
+            self._log("欢迎消息发送完成")
+            event.stop_event()
+            
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
+            self._log(traceback.format_exc(), "error")
 
     # ========== 命令 ==========
     @filter.command("sfwelcome_test")
@@ -174,9 +199,7 @@ class StarFateWelcomePlugin(Star):
         try:
             html = self.handler.render(welcome, event, str(event.get_sender_id()))
             image_url = await self.html_render(html, {"full_page": True})
-
-            chain = [image_url]
-            yield event.chain_result(chain)
+            yield event.chain_result([image_url])
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
 
