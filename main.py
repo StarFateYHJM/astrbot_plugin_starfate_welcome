@@ -7,6 +7,7 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.api.message_components import At, Image
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -124,6 +125,11 @@ class StarFateWelcomePlugin(Star):
         if raw.get("post_type") != "notice" or raw.get("notice_type") != "group_increase":
             return
 
+        sub_type = raw.get("sub_type")
+        if sub_type not in ("invite", "approve"):
+            self._log(f"忽略入群子事件: sub_type={sub_type}", "debug")
+            return
+
         group_id_str = str(group_id)
         user_id_str = str(raw.get("user_id", ""))
 
@@ -135,14 +141,15 @@ class StarFateWelcomePlugin(Star):
             return
 
         try:
-            # 先发 @
-            yield event.plain_result(f"[CQ:at,qq={user_id_str}]")
-            
-            # 再发图片
             html = self.handler.render(welcome, event, user_id_str)
-            url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(url)
-            
+            image_url = await self.html_render(html, {"full_page": True})
+
+            chain = [
+                At(qq=user_id_str),
+                Image.from_file(image_url)
+            ]
+            yield event.chain_result(chain)
+
             self._log("欢迎消息已发送")
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
@@ -166,8 +173,10 @@ class StarFateWelcomePlugin(Star):
 
         try:
             html = self.handler.render(welcome, event, str(event.get_sender_id()))
-            url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(url)
+            image_url = await self.html_render(html, {"full_page": True})
+
+            chain = [Image.from_file(image_url)]
+            yield event.chain_result(chain)
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
 
