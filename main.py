@@ -160,6 +160,9 @@ class StarFateWelcomePlugin(Star):
             return
 
         raw = self._extract_raw(event, event.message_obj)
+        self._log("=== 完整 raw 数据 ===", "info")
+        self._log(json.dumps(raw, ensure_ascii=False, indent=2, default=str), "info")
+        self._log("=== raw 数据结束 ===", "info")
         if not isinstance(raw, dict):
             self._log("raw 不是字典，退出", "debug")
             return
