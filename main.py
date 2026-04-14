@@ -7,7 +7,7 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message_components import At, Image
+from astrbot.api.message_components import At
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -146,7 +146,7 @@ class StarFateWelcomePlugin(Star):
 
             chain = [
                 At(qq=user_id_str),
-                Image.from_file(image_url)
+                image_url
             ]
             yield event.chain_result(chain)
 
@@ -175,7 +175,7 @@ class StarFateWelcomePlugin(Star):
             html = self.handler.render(welcome, event, str(event.get_sender_id()))
             image_url = await self.html_render(html, {"full_page": True})
 
-            chain = [Image.from_file(image_url)]
+            chain = [image_url]
             yield event.chain_result(chain)
         except Exception as e:
             yield event.plain_result(f"失败: {e}")
