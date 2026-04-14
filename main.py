@@ -194,7 +194,7 @@ class StarFateWelcomePlugin(Star):
 
         try:
             self._log("开始渲染...", "debug")
-            html = self.handler.render(welcome, event, user_id_str)
+            html = await self.handler.render(welcome, event, user_id_str)
             self._log(f"HTML 长度: {len(html)}", "debug")
             
             image_url = await self.html_render(html, {"full_page": True})
