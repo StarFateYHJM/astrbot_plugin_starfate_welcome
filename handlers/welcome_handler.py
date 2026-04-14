@@ -7,6 +7,7 @@ from astrbot.api import logger
 
 
 class WelcomeHandler:
+    """入群欢迎渲染器"""
 
     def __init__(self, plugin):
         self.plugin = plugin
@@ -21,37 +22,38 @@ class WelcomeHandler:
         self._log("缓存已清空")
 
     def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
-        user_id = override_user_id if override_user_id else str(event.get_sender_id())
+        user_id = override_user_id or str(event.get_sender_id())
         group_id = str(event.get_group_id())
-        data = json.dumps({"w": welcome, "u": user_id, "g": group_id}, sort_keys=True)
-        h = hashlib.md5(data.encode()).hexdigest()[:8]
 
-        if h in self._cache:
-            self._log(f"缓存命中: {h}")
-            return self._cache[h]
+        cache_key = hashlib.md5(
+            json.dumps({"w": welcome, "u": user_id, "g": group_id}, sort_keys=True).encode()
+        ).hexdigest()[:8]
 
-        self._log(f"渲染: {h}")
+        if cache_key in self._cache:
+            self._log(f"缓存命中: {cache_key}")
+            return self._cache[cache_key]
+
+        self._log(f"渲染: {cache_key}")
         html = self._build_html(welcome, event, user_id)
-        self._cache[h] = html
+        self._cache[cache_key] = html
         return html
 
     def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
         gid = str(event.get_group_id())
-        uname = user_id
-        gname = gid
-        if hasattr(event, 'get_sender_name'):
-            uname = event.get_sender_name() or user_id
-        if hasattr(event, 'get_group_name'):
-            gname = event.get_group_name() or gid
-        return text.replace("{user_id}", user_id)\
-                  .replace("{user_name}", uname)\
-                  .replace("{group_id}", gid)\
-                  .replace("{group_name}", gname)\
-                  .replace("{at_user}", f"[CQ:at,qq={user_id}]")
+        uname = getattr(event, 'get_sender_name', lambda: user_id)() or user_id
+        gname = getattr(event, 'get_group_name', lambda: gid)() or gid
+
+        return (text
+                .replace("{user_id}", user_id)
+                .replace("{user_name}", uname)
+                .replace("{group_id}", gid)
+                .replace("{group_name}", gname)
+                .replace("{at_user}", f"[CQ:at,qq={user_id}]"))
 
     def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
         content = self._replace_vars(w.get("content", ""), event, user_id)
         bg = self.plugin.resolve_background(w.get("background_image", ""))
+
         overlay = ""
         if bg and w.get("background_overlay", True):
             overlay = f'<div class="overlay" style="background:{w.get("overlay_color","#000")};opacity:{w.get("overlay_opacity",0.5)}"></div>'
