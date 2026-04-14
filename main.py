@@ -9,7 +9,6 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api.message_components import At, Plain
-from astrbot.api.message import MessageChain
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -164,17 +163,20 @@ class StarFateWelcomePlugin(Star):
             self._log("调用 html_render...", "debug")
             image_url = await self.html_render(html, {"full_page": True})
             self._log(f"图片 URL: {image_url}")
-        
-            self._log("发送欢迎消息...", "debug")
-            chain = MessageChain()
-            chain.add(At(qq=user_id_str))
-            chain.add(Plain(" "))
-            chain.add(image_url)
-            await event.send(chain)
-            self._log("欢迎消息已发送", "debug")
-        
+
+            # 获取 @ 后的文字
+            at_text = welcome.get("at_text", " 欢迎入群！")
+            
+            self._log("发送 @ 消息...", "debug")
+            await event.send([At(qq=user_id_str), Plain(at_text)])
+            self._log("@ 消息已发送", "debug")
+            
+            self._log("发送图片消息...", "debug")
+            await event.send([image_url])
+            self._log("图片消息已发送", "debug")
+
             event.stop_event()
-    
+            
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
             self._log(traceback.format_exc(), "error")
