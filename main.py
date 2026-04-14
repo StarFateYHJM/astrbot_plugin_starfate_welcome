@@ -8,7 +8,7 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message_components import At, Plain
+from astrbot.api.message_components import At, Plain,MessageChain
 
 from .handlers.welcome_handler import WelcomeHandler
 
@@ -165,16 +165,15 @@ class StarFateWelcomePlugin(Star):
             self._log(f"图片 URL: {image_url}")
         
             self._log("发送欢迎消息...", "debug")
-            chain = [
-                At(qq=user_id_str),
-                Plain(" "),
-                image_url
-            ]
+            chain = MessageChain()
+            chain.add(At(qq=user_id_str))
+            chain.add(Plain(" "))
+            chain.add(image_url)
             await event.send(chain)
             self._log("欢迎消息已发送", "debug")
         
             event.stop_event()
-            
+    
         except Exception as e:
             self._log(f"渲染失败: {e}", "error")
             self._log(traceback.format_exc(), "error")
