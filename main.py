@@ -173,7 +173,7 @@ class StarFateWelcomePlugin(Star):
             
             # 发送图片消息
             self._log("发送图片消息...", "debug")
-            yield event.chain_result([image_url])
+            yield event.image_result(image_url)
             self._log("图片消息已发送", "debug")
         
             event.stop_event()
