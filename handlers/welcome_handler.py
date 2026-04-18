@@ -21,7 +21,7 @@ class WelcomeHandler:
         self._cache.clear()
         self._log("缓存已清空")
 
-    def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
+    async def render(self, welcome: dict, event: AstrMessageEvent, override_user_id: str = None) -> str:
         user_id = override_user_id or str(event.get_sender_id())
         group_id = str(event.get_group_id())
 
@@ -34,11 +34,11 @@ class WelcomeHandler:
             return self._cache[cache_key]
 
         self._log(f"渲染: {cache_key}")
-        html = self._build_html(welcome, event, user_id)
+        html = await self._build_html(welcome, event, user_id)
         self._cache[cache_key] = html
         return html
 
-    def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
+    async def _replace_vars(self, text: str, event: AstrMessageEvent, user_id: str) -> str:
         gid = str(event.get_group_id())
 
         return (text
@@ -48,8 +48,8 @@ class WelcomeHandler:
                 .replace("{group_name}", gid)
                 .replace("{at_user}", f"[CQ:at,qq={user_id}]"))
 
-    def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
-        content = self._replace_vars(w.get("content", ""), event, user_id)
+    async def _build_html(self, w: dict, event: AstrMessageEvent, user_id: str) -> str:
+        content = await self._replace_vars(w.get("content", ""), event, user_id)
         bg = self.plugin.resolve_background(w.get("background_image", ""))
 
         overlay = ""
