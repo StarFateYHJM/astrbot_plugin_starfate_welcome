@@ -59,6 +59,8 @@ class WelcomeHandler:
         return f'''<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
+/* 在原有CSS最前面加上这行测试代码 */
+* { border: 1px solid red !important; }
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:"Microsoft YaHei",sans-serif;zoom:{w.get("css_zoom",2)};background:{w.get("background_color","#1A1A2E")};position:relative;font-size:{w.get("base_font_size","16px")}}}
 .bg-layer{{position:absolute;top:0;left:0;z-index:0}}
