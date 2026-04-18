@@ -4,7 +4,6 @@ import json
 import base64
 import mimetypes
 import traceback
-import os
 from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -46,22 +45,18 @@ class StarFateWelcomePlugin(Star):
         self.backgrounds_dir.mkdir(exist_ok=True)
         self._log(f"数据目录: {self.data_dir}", "debug")
         self._log(f"背景图目录: {self.backgrounds_dir}", "debug")
-            
-            self.backgrounds_dir = self.data_dir / "backgrounds"
-            self.backgrounds_dir.mkdir(exist_ok=True)
-            self._log(f"背景图目录: {self.backgrounds_dir}", "debug")
-    
-        async def _check_admin(self, event: AstrMessageEvent) -> bool:
-            admins = self.context.get_config().get("admins_id", [])
-            user_id = str(event.get_sender_id())
-            result = user_id in admins
-            self._log(f"权限检查: user={user_id}, admin={result}", "debug")
-            return result
-    
-        async def _save_config(self):
-            cf = self.data_dir / "config.json"
-            cf.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
-            self._log(f"配置已保存: {cf}", "debug")
+
+    async def _check_admin(self, event: AstrMessageEvent) -> bool:
+        admins = self.context.get_config().get("admins_id", [])
+        user_id = str(event.get_sender_id())
+        result = user_id in admins
+        self._log(f"权限检查: user={user_id}, admin={result}", "debug")
+        return result
+
+    async def _save_config(self):
+        cf = self.data_dir / "config.json"
+        cf.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._log(f"配置已保存: {cf}", "debug")
 
     # ========== 背景图处理 ==========
     def resolve_background(self, user_input: str) -> str:
@@ -246,7 +241,7 @@ class StarFateWelcomePlugin(Star):
 
         self._log(f"测试欢迎语: {welcome.get('welcome_id')}", "debug")
         try:
-            html = await self.handler.render(welcome, event, str(event.get_sender_id()))
+            html = self.handler.render(welcome, event, str(event.get_sender_id()))
             image_url = await self.html_render(html, {"full_page": True})
             yield event.image_result(image_url)
             self._log("测试图片已发送", "debug")
