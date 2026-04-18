@@ -56,22 +56,14 @@ class WelcomeHandler:
         if bg and w.get("background_overlay", True):
             overlay = f'<div class="overlay" style="background:{w.get("overlay_color","#000")};opacity:{w.get("overlay_opacity",0.5)}"></div>'
 
-        # 构建 body 样式
-        body_style = f'font-family:"Microsoft YaHei",sans-serif;zoom:{w.get("css_zoom",2)};position:relative;font-size:{w.get("base_font_size","16px")}'
-        if bg:
-            # 清理 Base64 中的换行符
-            bg_clean = bg.replace('\n', '').replace('\r', '')
-            body_style += f';background-image:url(\'{bg_clean}\');background-size:cover;background-position:center;background-repeat:no-repeat'
-        else:
-            body_style += f';background:{w.get("background_color","#1A1A2E")}'
-
         return f'''<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-html,body{{width:100%;min-height:100vh}}
-body{{{body_style}}}
-.overlay{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1}}
+body{{font-family:"Microsoft YaHei",sans-serif;zoom:{w.get("css_zoom",2)};background:{w.get("background_color","#1A1A2E")};position:relative;font-size:{w.get("base_font_size","16px")}}}
+.bg-layer{{position:absolute;top:0;left:0;z-index:0}}
+.bg-layer img{{display:block;width:100%;height:100%;object-fit:cover}}
+.overlay{{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1}}
 .welcome-container{{position:relative;padding:{w.get("padding_body","40px 50px")};color:{w.get("text_color","#FFF")};z-index:2}}
 .content h1{{font-size:{w.get("h1_font_size","2.5em")};border-bottom:2px solid {w.get("border_color","#333")};margin-bottom:20px;padding-bottom:15px}}
 .content h2{{font-size:{w.get("h2_font_size","2em")};margin:30px 0 15px}}
@@ -87,10 +79,22 @@ body{{{body_style}}}
 .content th,.content td{{border:1px solid {w.get("border_color","#333")};padding:10px 15px}}
 .content hr{{border:none;border-top:2px solid {w.get("border_color","#333")};margin:30px 0}}
 </style></head>
-<body>{overlay}
+<body><div class="bg-layer" id="bgLayer"></div>{overlay}
 <div class="welcome-container"><div class="content" id="content"></div></div>
 <script>
 (function(){{
     document.getElementById('content').innerHTML = marked.parse({json.dumps(content)});
+    var bg = '{bg}';
+    if(bg){{
+        var i = new Image();
+        i.onload = function(){{
+            var w = this.width, h = this.height, max = 2000;
+            if(w > max || h > max){{ var s = Math.min(max/w, max/h); w = Math.round(w*s); h = Math.round(h*s); }}
+            document.body.style.width = w + 'px';
+            document.body.style.height = h + 'px';
+            document.getElementById('bgLayer').innerHTML = '<img src="' + bg + '" style="width:' + w + 'px;height:' + h + 'px;">';
+        }};
+        i.src = bg;
+    }}
 }})();
 </script></body></html>'''
