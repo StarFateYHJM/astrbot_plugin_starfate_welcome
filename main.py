@@ -39,51 +39,29 @@ class StarFateWelcomePlugin(Star):
 
     def _init_paths(self):
         from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-        logger.info("=== _init_paths 被执行了 ===")
-        
-        # 方法1：尝试框架路径
-        base_path = get_astrbot_data_path()
-        if isinstance(base_path, str):
-            base_path = Path(base_path)
-        
-        # 方法2：检查环境变量
-        env_path = os.environ.get("ASTRBOT_DATA_PATH", "")
-        if env_path:
-            base_path = Path(env_path)
-        
-        self.data_dir = base_path / "plugin_data" / self.name
-        
-        # 尝试创建，失败则使用硬编码备用路径
-        try:
-            self.data_dir.mkdir(parents=True, exist_ok=True)
-            # 测试写入权限
-            test_file = self.data_dir / ".write_test"
-            test_file.touch()
-            test_file.unlink()
-            self._log(f"数据目录创建成功: {self.data_dir}", "debug")
-        except Exception as e:
-            # 备用路径：常见的 Docker 挂载位置
-            fallback_path = Path("/opt/astrbot/data/astrbot/plugin_data") / self.name
-            self._log(f"主路径失败({e})，使用备用路径: {fallback_path}", "warning")
-            self.data_dir = fallback_path
-            self.data_dir.mkdir(parents=True, exist_ok=True)
-            self._log(f"备用数据目录: {self.data_dir}", "debug")
-        
+        path = get_astrbot_data_path()
+        self.data_dir = (Path(path) if isinstance(path, str) else path) / "plugin_data" / self.name
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         self.backgrounds_dir = self.data_dir / "backgrounds"
         self.backgrounds_dir.mkdir(exist_ok=True)
+        self._log(f"数据目录: {self.data_dir}", "debug")
         self._log(f"背景图目录: {self.backgrounds_dir}", "debug")
-
-    async def _check_admin(self, event: AstrMessageEvent) -> bool:
-        admins = self.context.get_config().get("admins_id", [])
-        user_id = str(event.get_sender_id())
-        result = user_id in admins
-        self._log(f"权限检查: user={user_id}, admin={result}", "debug")
-        return result
-
-    async def _save_config(self):
-        cf = self.data_dir / "config.json"
-        cf.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
-        self._log(f"配置已保存: {cf}", "debug")
+            
+            self.backgrounds_dir = self.data_dir / "backgrounds"
+            self.backgrounds_dir.mkdir(exist_ok=True)
+            self._log(f"背景图目录: {self.backgrounds_dir}", "debug")
+    
+        async def _check_admin(self, event: AstrMessageEvent) -> bool:
+            admins = self.context.get_config().get("admins_id", [])
+            user_id = str(event.get_sender_id())
+            result = user_id in admins
+            self._log(f"权限检查: user={user_id}, admin={result}", "debug")
+            return result
+    
+        async def _save_config(self):
+            cf = self.data_dir / "config.json"
+            cf.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._log(f"配置已保存: {cf}", "debug")
 
     # ========== 背景图处理 ==========
     def resolve_background(self, user_input: str) -> str:
