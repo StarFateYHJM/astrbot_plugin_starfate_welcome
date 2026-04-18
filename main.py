@@ -241,7 +241,7 @@ class StarFateWelcomePlugin(Star):
 
         self._log(f"测试欢迎语: {welcome.get('welcome_id')}", "debug")
         try:
-            html = self.handler.render(welcome, event, str(event.get_sender_id()))
+            html = await self.handler.render(welcome, event, str(event.get_sender_id()))
             image_url = await self.html_render(html, {"full_page": True})
             yield event.image_result(image_url)
             self._log("测试图片已发送", "debug")
