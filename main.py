@@ -26,7 +26,7 @@ class StarFateWelcomePlugin(Star):
         self._init_paths()
         self.handler = WelcomeHandler(self)
 
-        self._log(f"插件已加载，debug={self.debug}")
+        self._log(f"插件已加载，debug={self.debug}", "debug")
         self._log(f"配置项数量: {len(self.config)}", "debug")
         self._log(f"欢迎语套数: {len(self.config.get('welcome_sets', []))}", "debug")
         self._log(f"群绑定数量: {len(self.config.get('group_welcome_map', []))}", "debug")
@@ -160,9 +160,9 @@ class StarFateWelcomePlugin(Star):
             return
 
         raw = self._extract_raw(event, event.message_obj)
-        self._log("=== 完整 raw 数据 ===", "info")
-        self._log(json.dumps(raw, ensure_ascii=False, indent=2, default=str), "info")
-        self._log("=== raw 数据结束 ===", "info")
+        self._log("=== 完整 raw 数据 ===", "debug")
+        self._log(json.dumps(raw, ensure_ascii=False, indent=2, default=str), "debug")
+        self._log("=== raw 数据结束 ===", "debug")
         if not isinstance(raw, dict):
             self._log("raw 不是字典，退出", "debug")
             return
