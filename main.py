@@ -1,345 +1,193 @@
-"""StarFate 入群欢迎插件 - 主入口"""
-
-import json
-import base64
-import mimetypes
-import traceback
-from pathlib import Path
+import sqlite3
+import os
+import time
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
+from astrbot.api.provider import ProviderRequest
 from astrbot.api import logger
-from astrbot.api.message_components import At, Plain
 
-from .handlers.welcome_handler import WelcomeHandler
+STOP_WORDS = {
+    '你', '我', '他', '她', '它', '们', '的', '了', '是', '在', '有', '和', '不', '这', '那',
+    '吗', '呢', '吧', '啊', '哦', '嗯', '还', '就', '都', '也', '要', '会', '能', '去', '来',
+    '说', '看', '想', '知道', '记得', '告诉', '觉得', '可以', '应该', '怎么', '什么', '哪',
+    '一个', '这个', '那个', '这样', '那样', '真的', '好', '很', '有点', '没有'
+}
 
-
-@register("astrbot_plugin_starfate_welcome", "YHJM", "StarFate 入群欢迎", "1.0.0")
-class StarFateWelcomePlugin(Star):
-    """StarFate 入群欢迎插件"""
-
+@register("satrfate_chat_search", "you", "极简聊天记录检索注入插件，按会话物理隔离，纯LIKE检索，零依赖", "2.5.3")
+class SatrfateChatSearchPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
-        self.name = "astrbot_plugin_starfate_welcome"
-        self.config = config or {}
-        self.debug = self.config.get("debug_mode", False)
+        self.data_dir = os.path.join("data", "plugin_data", "satrfate_chat_search")
+        os.makedirs(self.data_dir, exist_ok=True)
 
-        self._init_paths()
-        self.handler = WelcomeHandler(self)
+        self.debug = config.get("debug", False) if config else False
+        if self.debug:
+            logger.info("[ChatSearch] 调试模式已开启")
 
-        self._log(f"插件已加载，debug={self.debug}", "debug")
-        self._log(f"配置项数量: {len(self.config)}", "debug")
-        self._log(f"欢迎语套数: {len(self.config.get('welcome_sets', []))}", "debug")
-        self._log(f"群绑定数量: {len(self.config.get('group_welcome_map', []))}", "debug")
+    def _get_db_path(self, session_id: str) -> str:
+        safe_name = session_id.replace(':', '_').replace('\\', '_').replace('/', '_')
+        return os.path.join(self.data_dir, f"{safe_name}.db")
 
-    # ========== 工具方法 ==========
-    def _log(self, msg: str, level: str = "info"):
-        if self.debug or level != "debug":
-            getattr(logger, level)(f"[DEBUG] {msg}" if level == "debug" else msg)
+    def _init_db(self, db_path: str):
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender_id TEXT NOT NULL,
+                sender_name TEXT NOT NULL,
+                message_text TEXT NOT NULL,
+                timestamp REAL NOT NULL
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON messages(timestamp DESC)")
+        conn.commit()
+        conn.close()
 
-    def _init_paths(self):
-        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-        path = get_astrbot_data_path()
-        self.data_dir = (Path(path) if isinstance(path, str) else path) / "plugin_data" / self.name
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.backgrounds_dir = self.data_dir / "backgrounds"
-        self.backgrounds_dir.mkdir(exist_ok=True)
-        self._log(f"数据目录: {self.data_dir}", "debug")
-        self._log(f"背景图目录: {self.backgrounds_dir}", "debug")
+    def _is_mentioned(self, event: AstrMessageEvent) -> bool:
+        message_text = event.message_str
+        self_id = event.get_self_id()
+        return f'[CQ:at,qq={self_id}]' in message_text
 
-    async def _check_admin(self, event: AstrMessageEvent) -> bool:
-        admins = self.context.get_config().get("admins_id", [])
-        user_id = str(event.get_sender_id())
-        result = user_id in admins
-        self._log(f"权限检查: user={user_id}, admin={result}", "debug")
-        return result
+    # ========== 指令：测试检索 ==========
+    @filter.command("searchtest")
+    async def cmd_search_test(self, event: AstrMessageEvent, message: str):
+        session_id = event.unified_msg_origin
+        args = message.strip().split()
 
-    async def _save_config(self):
-        cf = self.data_dir / "config.json"
-        cf.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
-        self._log(f"配置已保存: {cf}", "debug")
-
-    # ========== 背景图处理 ==========
-    def resolve_background(self, user_input: str) -> str:
-        self._log(f"解析背景图: input='{user_input}'", "debug")
-        if not user_input:
-            self._log("背景图为空", "debug")
-            return ""
-        if user_input.startswith(("http://", "https://")):
-            self._log(f"使用 URL: {user_input}", "debug")
-            return user_input
-
-        local_path = self.backgrounds_dir / user_input
-        self._log(f"本地路径: {local_path}", "debug")
-        if not local_path.exists():
-            self._log(f"本地文件不存在: {user_input}", "warning")
-            return ""
-
-        try:
-            mime_type, _ = mimetypes.guess_type(str(local_path))
-            mime_type = mime_type or "image/png"
-            with open(local_path, "rb") as f:
-                data = base64.b64encode(f.read()).decode("utf-8")
-            self._log(f"Base64 转换成功，类型: {mime_type}", "debug")
-            return f"data:{mime_type};base64,{data}"
-        except Exception as e:
-            self._log(f"读取背景图失败: {e}", "error")
-            return ""
-
-    # ========== 欢迎语查找 ==========
-    def _get_welcome_by_id(self, wid: str) -> dict:
-        self._log(f"按ID查找欢迎语: {wid}", "debug")
-        for i, w in enumerate(self.config.get("welcome_sets", [])):
-            if str(w.get("welcome_id")) == str(wid):
-                self._log(f"找到: 索引={i}, name={w.get('welcome_name')}", "debug")
-                return w
-        self._log(f"未找到欢迎语: {wid}", "debug")
-        return None
-
-    def _get_welcome_for_group(self, group_id: str) -> dict:
-        self._log(f"查找群欢迎语: group={group_id}", "debug")
-        ws = self.config.get("welcome_sets", [])
-        if not ws:
-            self._log("没有配置任何欢迎语", "debug")
-            return None
-
-        bindings = self.config.get("group_welcome_map", [])
-        self._log(f"群绑定配置: {bindings}", "debug")
-        
-        welcome_id = next(
-            (b.get("welcome_id") for b in bindings if str(b.get("group_id")) == str(group_id)),
-            None
-        )
-        self._log(f"绑定的欢迎语ID: {welcome_id}", "debug")
-
-        if welcome_id:
-            w = self._get_welcome_by_id(welcome_id)
-            if w:
-                return w
-
-        default_w = next((w for w in ws if w.get("is_default")), ws[0] if ws else None)
-        self._log(f"使用默认欢迎语: {default_w.get('welcome_id') if default_w else 'None'}", "debug")
-        return default_w
-
-    # ========== 事件处理 ==========
-    def _extract_raw(self, event: AstrMessageEvent, msg_obj) -> dict:
-        self._log("提取 raw 数据...", "debug")
-        
-        if hasattr(msg_obj, 'raw_message'):
-            raw = msg_obj.raw_message
-            self._log(f"从 msg_obj.raw_message 获取，类型: {type(raw)}", "debug")
-            if isinstance(raw, str):
-                try:
-                    parsed = json.loads(raw)
-                    self._log("JSON 解析成功", "debug")
-                    return parsed
-                except json.JSONDecodeError:
-                    self._log("JSON 解析失败", "debug")
-                    return None
-            if isinstance(raw, dict):
-                self._log("已经是字典", "debug")
-                return raw
-
-        for source_name, source in [('event.raw', getattr(event, 'raw', None)), 
-                                    ('msg_obj.raw', getattr(msg_obj, 'raw', None))]:
-            if isinstance(source, dict):
-                self._log(f"从 {source_name} 获取到字典", "debug")
-                return source
-
-        self._log("未获取到 raw 数据", "debug")
-        return None
-
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_all_event(self, event: AstrMessageEvent):
-        self._log("=" * 50, "debug")
-        self._log("收到事件", "debug")
-        
-        group_id = event.get_group_id()
-        self._log(f"group_id: {group_id}", "debug")
-        if not group_id:
-            self._log("无 group_id，退出", "debug")
-            return
-
-        raw = self._extract_raw(event, event.message_obj)
-        self._log("=== 完整 raw 数据 ===", "debug")
-        self._log(json.dumps(raw, ensure_ascii=False, indent=2, default=str), "debug")
-        self._log("=== raw 数据结束 ===", "debug")
-        if not isinstance(raw, dict):
-            self._log("raw 不是字典，退出", "debug")
-            return
-
-        post_type = raw.get("post_type")
-        notice_type = raw.get("notice_type")
-        sub_type = raw.get("sub_type")
-        self._log(f"事件类型: post_type={post_type}, notice_type={notice_type}, sub_type={sub_type}", "debug")
-
-        if post_type != "notice" or notice_type != "group_increase":
-            self._log("不是入群事件，退出", "debug")
-            return
-
-        if sub_type not in ("invite", "approve"):
-            self._log(f"忽略入群子事件: {sub_type}", "debug")
-            return
-
-        group_id_str = str(group_id)
-        user_id_str = str(raw.get("user_id", ""))
-
-        self._log(f"入群事件确认: group={group_id_str}, user={user_id_str}")
-
-        welcome = self._get_welcome_for_group(group_id_str)
-        if not welcome:
-            self._log(f"群 {group_id_str} 无欢迎语，退出", "debug")
-            return
-
-        self._log(f"使用欢迎语: id={welcome.get('welcome_id')}, name={welcome.get('welcome_name')}")
-
-        try:
-            self._log("开始渲染...", "debug")
-            html = await self.handler.render(welcome, event, user_id_str)
-            self._log(f"HTML 长度: {len(html)}", "debug")
-            
-            image_url = await self.html_render(html, {"full_page": True})
-            self._log(f"图片 URL: {image_url}")
-
-            at_text = welcome.get("at_text", " 欢迎入群！")
-            self._log(f"@ 文字: '{at_text}'", "debug")
-            
-            self._log("发送 @ 消息...", "debug")
-            yield event.chain_result([At(qq=user_id_str), Plain(at_text)])
-            self._log("@ 消息已发送", "debug")
-            
-            self._log("发送图片...", "debug")
-            yield event.image_result(image_url)
-            self._log("图片已发送", "debug")
-
-            event.stop_event()
-            self._log("事件处理完成", "debug")
-            
-        except Exception as e:
-            self._log(f"渲染失败: {e}", "error")
-            self._log(traceback.format_exc(), "error")
-        finally:
-            self._log("=" * 50, "debug")
-
-    # ========== 命令 ==========
-    @filter.command("sfwelcome_test")
-    async def cmd_test(self, event: AstrMessageEvent, welcome_id: str = None):
-        self._log(f"测试命令: welcome_id={welcome_id}", "debug")
-        
-        if not await self._check_admin(event):
-            yield event.plain_result("权限不足")
-            return
-
-        group_id = str(event.get_group_id())
-        if not group_id:
-            yield event.plain_result("请在群聊中使用")
-            return
-
-        welcome = self._get_welcome_by_id(welcome_id) if welcome_id else self._get_welcome_for_group(group_id)
-        if not welcome:
-            yield event.plain_result("无欢迎语")
-            return
-
-        self._log(f"测试欢迎语: {welcome.get('welcome_id')}", "debug")
-        try:
-            html = await self.handler.render(welcome, event, str(event.get_sender_id()))
-            image_url = await self.html_render(html, {"full_page": True})
-            yield event.image_result(image_url)
-            self._log("测试图片已发送", "debug")
-        except Exception as e:
-            self._log(f"测试失败: {e}", "error")
-            yield event.plain_result(f"失败: {e}")
-
-    @filter.command("sfwelcome_reload")
-    async def cmd_reload(self, event: AstrMessageEvent):
-        self._log("重载命令", "debug")
-        if not await self._check_admin(event):
-            yield event.plain_result("权限不足")
-            return
-        await self._reload_config()
-        self.handler.clear_cache()
-        self._log("配置已重载", "debug")
-        yield event.plain_result("已重载")
-
-    async def _reload_config(self):
-        self._log("刷新配置...", "debug")
-        try:
-            if sm := self.context.get_star_manager():
-                if p := sm.get_star(self.name):
-                    if p and p.config:
-                        self.config = p.config
-                        self.debug = self.config.get("debug_mode", False)
-                        self._log("从插件管理器刷新成功", "debug")
-                        return
-            cf = self.data_dir / "config.json"
-            if cf.exists():
-                self.config = json.loads(cf.read_text(encoding="utf-8"))
-                self.debug = self.config.get("debug_mode", False)
-                self._log("从配置文件刷新成功", "debug")
-        except Exception as e:
-            self._log(f"刷新失败: {e}", "warning")
-
-    @filter.command("sfwelcome_list")
-    async def cmd_list(self, event: AstrMessageEvent):
-        self._log("列表命令", "debug")
-        ws = self.config.get("welcome_sets", [])
-        if not ws:
-            yield event.plain_result("暂无配置")
-            return
-
-        lines = ["=== 欢迎语列表 ==="]
-        for i, w in enumerate(ws, 1):
-            name = w.get("welcome_name", "?")
-            wid = w.get("welcome_id", "?")
-            default = " [默认]" if w.get("is_default") else ""
-            lines.append(f"{i}. {name} ({wid}){default}")
-
-        bindings = self.config.get("group_welcome_map", [])
-        if bindings:
-            lines.append("\n=== 群聊绑定 ===")
-            for b in bindings:
-                lines.append(f"群 {b.get('group_id')} -> {b.get('welcome_id')}")
-
-        yield event.plain_result("\n".join(lines))
-
-    @filter.command("sfwelcome_bind")
-    async def cmd_bind(self, event: AstrMessageEvent, group_id: str, welcome_id: str):
-        self._log(f"绑定命令: group={group_id}, welcome={welcome_id}", "debug")
-        if not await self._check_admin(event):
-            yield event.plain_result("权限不足")
-            return
-
-        bindings = self.config.get("group_welcome_map", [])
-        for bind in bindings:
-            if str(bind.get("group_id")) == str(group_id):
-                bind["welcome_id"] = welcome_id
-                self._log(f"更新已有绑定", "debug")
-                break
+        if args and args[0] == '--all':
+            keywords = args[1:]
+            all_results = []
+            for f in os.listdir(self.data_dir):
+                if f.endswith('.db'):
+                    db_path = os.path.join(self.data_dir, f)
+                    sid = f[:-3]
+                    for sender_name, msg_text, ts in self._search_history(db_path, keywords):
+                        all_results.append((f"[{sid[:30]}...] {sender_name}", msg_text, ts))
+            all_results.sort(key=lambda x: x[2])
+            history = all_results[:30]
+            scope = f"全局（{len(all_results)} 条）"
         else:
-            bindings.append({"group_id": group_id, "welcome_id": welcome_id})
-            self._log(f"新增绑定", "debug")
+            keywords = args if args else message.strip().split()
+            db_path = self._get_db_path(session_id)
+            if not os.path.exists(db_path):
+                yield event.plain_result(f"🔍 当前会话还没有任何聊天记录。")
+                return
+            history = self._search_history(db_path, keywords)
+            scope = "当前会话"
 
-        self.config["group_welcome_map"] = bindings
-        await self._save_config()
-        yield event.plain_result(f"已绑定群 {group_id} -> {welcome_id}")
-
-    @filter.command("sfwelcome_unbind")
-    async def cmd_unbind(self, event: AstrMessageEvent, group_id: str):
-        self._log(f"解绑命令: group={group_id}", "debug")
-        if not await self._check_admin(event):
-            yield event.plain_result("权限不足")
+        if not history:
+            yield event.plain_result(f"🔍 在{scope}中未找到与「{' '.join(keywords)}」相关的历史记录。")
             return
 
-        old_count = len(self.config.get("group_welcome_map", []))
-        self.config["group_welcome_map"] = [
-            b for b in self.config.get("group_welcome_map", [])
-            if str(b.get("group_id")) != str(group_id)
-        ]
-        new_count = len(self.config["group_welcome_map"])
-        self._log(f"绑定数量: {old_count} -> {new_count}", "debug")
-        
-        await self._save_config()
-        yield event.plain_result(f"已解绑群 {group_id}")
+        result_lines = [f"🔍 检索「{' '.join(keywords)}」{scope}命中 {len(history)} 条记录：\n"]
+        for i, (sender_name, msg_text, ts) in enumerate(history, 1):
+            time_str = time.strftime('%m-%d %H:%M', time.localtime(ts))
+            preview = msg_text[:100] + ("..." if len(msg_text) > 100 else "")
+            result_lines.append(f"{i}. [{time_str}] {sender_name}: {preview}")
+
+        result_text = "\n".join(result_lines)
+        if len(result_text) > 2000:
+            result_text = result_text[:1990] + "\n...（内容过长已截断）"
+        yield event.plain_result(result_text)
+
+    # ========== 存储所有消息（用户 + AI） ==========
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=10)
+    async def log_message(self, event: AstrMessageEvent):
+        session_id = event.unified_msg_origin
+        sender_id = event.get_sender_id()
+        sender_name = event.get_sender_name()
+        message_text = event.message_str
+
+        # 判断是否为 AI 回复
+        if sender_id == event.get_self_id():
+            sender_name = "assistant"
+
+        if not message_text or not message_text.strip():
+            return
+        if message_text.startswith('/') or message_text.startswith('#'):
+            return
+        if sender_name != "assistant" and message_text.strip() in STOP_WORDS:
+            return
+        if not event.is_private_chat() and not self._is_mentioned(event):
+            return
+
+        db_path = self._get_db_path(session_id)
+        self._init_db(db_path)
+        self._insert_to_db(db_path, sender_id, sender_name, message_text)
+
+    def _insert_to_db(self, db_path: str, sender_id: str, sender_name: str, message_text: str):
+        try:
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO messages (sender_id, sender_name, message_text, timestamp)
+                VALUES (?, ?, ?, ?)
+            """, (sender_id, sender_name, message_text, time.time()))
+            conn.commit()
+            conn.close()
+            if self.debug:
+                logger.info(f"[ChatSearch] 已存储 [{sender_name}]: {message_text[:50]}...")
+        except Exception as e:
+            logger.error(f"[ChatSearch] 写入失败: {e}")
+
+    def _search_history(self, db_path: str, keywords: list, limit: int = 10) -> list:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        conditions = []
+        params = []
+        for kw in keywords:
+            if len(kw) > 1:
+                conditions.append("message_text LIKE ?")
+                params.append(f"%{kw}%")
+        where = " AND ".join(conditions) if conditions else "1=1"
+        sql = f"""SELECT sender_name, message_text, timestamp 
+                  FROM messages 
+                  WHERE {where} 
+                  AND NOT (sender_name = 'assistant' AND message_text LIKE '%🔍 检索%')
+                  ORDER BY timestamp DESC LIMIT ?"""
+        params.append(limit)
+        c.execute(sql, params)
+        results = c.fetchall()
+        conn.close()
+        return results
+
+    def _format_history(self, history: list) -> str:
+        lines = []
+        for sender_name, msg_text, ts in reversed(history):
+            lines.append(f"- [{sender_name}]: {msg_text}")
+        return "\n".join(lines)
+
+    # ========== 检索与注入 ==========
+    @filter.on_llm_request(priority=1)
+    async def on_llm_request(self, event: AstrMessageEvent, req: ProviderRequest):
+        session_id = event.unified_msg_origin
+        current_text = event.message_str
+        if not current_text:
+            return
+    
+        keywords = [w for w in current_text if len(w) >= 1 and '\u4e00' <= w <= '\u9fff' or (w.isalpha() and len(w) > 1)]
+        if not keywords:
+            return
+    
+        db_path = self._get_db_path(session_id)
+        if not os.path.exists(db_path):
+            return
+    
+        history = self._search_history(db_path, keywords, limit=10)
+        if history:
+            context_text = self._format_history(history)
+            injection = (
+                f"## 【历史聊天记录 - 仅供参考】\n"
+                f"{context_text}\n"
+                f"---\n"
+                f"你已自动检索到以上相关的历史聊天记录。接下来，请优先参考这些记录，用自然、亲切的语气回答用户。\n"
+            )
+            req.system_prompt = injection + req.system_prompt
+    
+            if self.debug:
+                logger.info(f"[ChatSearch] 为会话注入 {len(history)} 条历史记录到 system_prompt")
 
     async def terminate(self):
-        self._log("插件卸载", "debug")
-        logger.info("插件已卸载")
+        if self.debug:
+            logger.info("[ChatSearch] 插件已卸载")
